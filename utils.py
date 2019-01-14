@@ -139,9 +139,10 @@ def make_image(tensor):
     if tensor.size(0) == 1:
         tensor = tensor.expand(3, tensor.size(1), tensor.size(2))
     # pdb.set_trace()
-    return scipy.misc.toimage(tensor.numpy(),
-                              high=255*tensor.max(),
-                              channel_axis=0)
+    tensor_np = tensor.numpy()
+    # print('type of tensor_np: ', type(tensor_np))
+    # print('tensor.max(): ', float(tensor.max().data[0]))
+    return scipy.misc.toimage(tensor_np, high=float(255*tensor.max().data[0]), channel_axis=0)
 
 def save_image(filename, tensor):
     img = make_image(tensor)

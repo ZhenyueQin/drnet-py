@@ -14,8 +14,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.0002, type=float, help='learning rate')
 parser.add_argument('--beta1', default=0.9, type=float, help='momentum term for adam')
 parser.add_argument('--batch_size', default=100, type=int, help='batch size')
-parser.add_argument('--model_path', default='', help='path to drnet model')
-parser.add_argument('--data_root', default='', help='root directory for data')
+parser.add_argument('--model_path', default='.', help='path to drnet model')
+parser.add_argument('--data_root', default='./videos', help='root directory for data')
 parser.add_argument('--optimizer', default='adam', help='optimizer to train with')
 parser.add_argument('--niter', type=int, default=200, help='number of epochs to train for')
 parser.add_argument('--seed', default=1, type=int, help='manual seed')
@@ -48,6 +48,10 @@ dtype = torch.cuda.FloatTensor
 
 # ---------------- load the models  ----------------
 checkpoint = torch.load('%s/model.pth' % opt.model_path)
+
+# checkpoint = torch.load('pretrained_models/kth128x128_model.pth', map_location='cpu')
+# print('checkpoint: ', checkpoint)
+
 netD = checkpoint['netD']
 netEP = checkpoint['netEP']
 netEC = checkpoint['netEC']

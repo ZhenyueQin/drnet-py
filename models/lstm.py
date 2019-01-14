@@ -22,8 +22,13 @@ class lstm(nn.Module):
     def init_hidden(self):
         hidden = []
         for i in range(self.n_layers):
-            hidden.append((Variable(torch.zeros(self.batch_size, self.hidden_size).cuda()),
-                           Variable(torch.zeros(self.batch_size, self.hidden_size).cuda())))
+            cuda_no = torch.cuda.device_count()
+            if cuda_no > 0:
+                hidden.append((Variable(torch.zeros(self.batch_size, self.hidden_size).cuda()),
+                               Variable(torch.zeros(self.batch_size, self.hidden_size).cuda())))
+            else:
+                hidden.append((Variable(torch.zeros(self.batch_size, self.hidden_size).cpu()),
+                               Variable(torch.zeros(self.batch_size, self.hidden_size).cpu())))
         return hidden
 
     def forward(self, input):

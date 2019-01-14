@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 TARGET_DIR=$1
 if [ -z $TARGET_DIR ]
 then
