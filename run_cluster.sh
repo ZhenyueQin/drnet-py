@@ -3,7 +3,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=12:00:00
+#SBATCH --time=80:00:00
 #SBATCH --mem=30GB
 module load cuda/9.0.176
 
@@ -21,4 +21,4 @@ module load pytorch/0.4.1-py36-cuda90
 module load torchvision/0.2.1-py36
 
 #module load opencv/2.4.13.2
-python3 train_drnet.py
+python3 train_lstm.py

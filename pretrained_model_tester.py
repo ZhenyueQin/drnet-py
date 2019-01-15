@@ -27,6 +27,7 @@ parser.add_argument('--data_threads', type=int, default=5, help='number of paral
 parser.add_argument('--data_type', default='sequence', help='speed up data loading for drnet training')
 
 opt = parser.parse_args()
+opt.dataset = 'moving_mnist'
 opt.max_step = opt.n_past+opt.n_future
 opt.pose_dim = 5
 opt.content_dim = 128

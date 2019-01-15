@@ -14,15 +14,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.0002, type=float, help='learning rate')
 parser.add_argument('--beta1', default=0.9, type=float, help='momentum term for adam')
 parser.add_argument('--batch_size', default=100, type=int, help='batch size')
-parser.add_argument('--model_path', default='.', help='path to drnet model')
-parser.add_argument('--data_root', default='./videos', help='root directory for data')
+parser.add_argument('--model_path', default='./logs/kth128x128/2019-01-14-18-14-45/content_model=dcgan_unet-pose_model=dcgan-content_dim=128-pose_dim=10-max_step=20-sd_weight=0.000-lr=0.002-sd_nf=100-normalize=False', help='path to drnet model')
+parser.add_argument('--data_root', default='', help='root directory for data')
 parser.add_argument('--optimizer', default='adam', help='optimizer to train with')
 parser.add_argument('--niter', type=int, default=200, help='number of epochs to train for')
 parser.add_argument('--seed', default=1, type=int, help='manual seed')
 parser.add_argument('--epoch_size', type=int, default=600, help='epoch size')
-parser.add_argument('--image_width', type=int, default=64, help='the height / width of the input image to network')
+parser.add_argument('--image_width', type=int, default=128, help='the height / width of the input image to network')
 parser.add_argument('--channels', default=3, type=int)
-parser.add_argument('--data', default='moving_mnist', help='dataset to train with')
+parser.add_argument('--data', default='kth', help='dataset to train with')
 parser.add_argument('--n_past', type=int, default=10, help='number of frames to condition on')
 parser.add_argument('--n_future', type=int, default=10, help='number of frames to predict')
 parser.add_argument('--rnn_size', type=int, default=256, help='dimensionality of hidden layer')
@@ -39,19 +39,22 @@ opt.log_dir = '%s/lstm/%s' % (opt.model_path, name)
 os.makedirs('%s/gen/' % opt.log_dir, exist_ok=True)
 opt.max_step = opt.n_past+opt.n_future
 
+has_cuda = torch.cuda.is_available()
+
 print("Random Seed: ", opt.seed)
 random.seed(opt.seed)
 torch.manual_seed(opt.seed)
 torch.cuda.manual_seed_all(opt.seed)
-dtype = torch.cuda.FloatTensor
-
+if has_cuda:
+    dtype = torch.cuda.FloatTensor
+else:
+    dtype = torch.FloatTensor
 
 # ---------------- load the models  ----------------
-checkpoint = torch.load('%s/model.pth' % opt.model_path)
-
-# checkpoint = torch.load('pretrained_models/kth128x128_model.pth', map_location='cpu')
-# print('checkpoint: ', checkpoint)
-
+if has_cuda:
+    checkpoint = torch.load('%s/model.pth' % opt.model_path)
+else:
+    checkpoint = torch.load('%s/model.pth' % opt.model_path, map_location='cpu')
 netD = checkpoint['netD']
 netEP = checkpoint['netEP']
 netEC = checkpoint['netEC']
@@ -88,11 +91,18 @@ optimizer = opt.optimizer(lstm.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
 mse_criterion = nn.MSELoss()
 
 # --------- transfer to gpu ------------------------------------
-lstm.cuda()
-netEP.cuda()
-netEC.cuda()
-netD.cuda()
-mse_criterion.cuda()
+if has_cuda:
+    lstm.cuda()
+    netEP.cuda()
+    netEC.cuda()
+    netD.cuda()
+    mse_criterion.cuda()
+else:
+    lstm.cpu()
+    netEP.cpu()
+    netEC.cpu()
+    netD.cpu()
+    mse_criterion.cpu()
 
 # --------- load a dataset ------------------------------------
 train_data, test_data = utils.load_dataset(opt)
@@ -143,8 +153,14 @@ def plot_gen(x, epoch):
             h_p =netEP(x[i]).detach()
             gen_seq.append(x[i])
         else:
+            # print('h_p shape: ', h_p.shape)
+            # print('vec_h_c shape: ', vec_h_c.shape)
+            h_p = h_p.view([-1, h_p.shape[1], 1, 1])
             h_p = lstm(torch.cat([h_p, vec_h_c], 1))
+            # print('h_p', h_p.size())
+            # print('h_c', h_c.shape)
             pred_x = netD([h_c, h_p]).detach()
+            # print('pred_x', pred_x)
             gen_seq.append(pred_x)
 
     to_plot = []
@@ -152,9 +168,9 @@ def plot_gen(x, epoch):
     for i in range(nrow):
         row = []
         for t in range(opt.n_past+opt.n_future):
-            row.append(gen_seq[t][i]) 
+            row.append(gen_seq[t][i])
         to_plot.append(row)
-    fname = '%s/gen/gen_%d.png' % (opt.log_dir, epoch) 
+    fname = '%s/gen/gen_%d.png' % (opt.log_dir, epoch)
     utils.save_tensors_image(fname, to_plot)
 
 
@@ -184,14 +200,14 @@ def plot_rec(x, epoch):
         # ground truth
         row = []
         for t in range(opt.n_past+opt.n_future):
-            row.append(x[t][i]) 
+            row.append(x[t][i])
         to_plot.append(row)
         # gen
         row = []
         for t in range(opt.n_past+opt.n_future):
-            row.append(gen_seq[t][i]) 
+            row.append(gen_seq[t][i])
         to_plot.append(row)
-    fname = '%s/gen/rec_%d.png' % (opt.log_dir, epoch) 
+    fname = '%s/gen/rec_%d.png' % (opt.log_dir, epoch)
     utils.save_tensors_image(fname, to_plot)
 
 # --------- training funtions ------------------------------------
@@ -212,8 +228,9 @@ def train(x):
 
     mse = 0
     for i in range(1, opt.n_past+opt.n_future):
-        pose_pred = lstm(torch.cat([h_p[i-1], h_c], 1)) 
+        pose_pred = lstm(torch.cat([h_p[i-1], h_c], 1))
         #if i >= opt.n_past:
+        pose_pred = pose_pred.reshape([-1, opt.pose_dim, 1, 1])
         mse += mse_criterion(pose_pred, h_p[i])
     mse.backward()
 
@@ -223,6 +240,7 @@ def train(x):
 
 # --------- training loop ------------------------------------
 for epoch in range(opt.niter):
+    print('epoch: ', epoch)
     lstm.train()
     epoch_loss = 0
     progress = progressbar.ProgressBar(max_value=opt.epoch_size).start()
@@ -230,7 +248,7 @@ for epoch in range(opt.niter):
         progress.update(i+1)
         x = next(training_batch_generator)
 
-        # train lstm 
+        # train lstm
         loss = train(x)
         epoch_loss += loss
 
@@ -251,4 +269,4 @@ for epoch in range(opt.niter):
         'lstm': lstm,
         'opt': opt},
         '%s/model.pth' % opt.log_dir)
-        
+    print('here')

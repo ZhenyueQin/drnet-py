@@ -13,7 +13,7 @@ import progressbar
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.002, type=float, help='learning rate')
-parser.add_argument('--beta1', default=0.5, type=float, help='momentum term for adam')
+parser.add_argument('--beta1', default=0.0001, type=float, help='momentum term for adam')
 parser.add_argument('--batch_size', default=100, type=int, help='batch size')
 parser.add_argument('--log_dir', default='logs', help='base directory to save logs')
 parser.add_argument('--data_root', default='./videos', help='root directory for data')
@@ -31,13 +31,14 @@ parser.add_argument('--sd_weight', type=float, default=0.0001, help='weight on a
 parser.add_argument('--sd_nf', type=int, default=100, help='number of layers')
 parser.add_argument('--content_model', default='dcgan_unet', help='model type (dcgan | dcgan_unet | vgg_unet)')
 parser.add_argument('--pose_model', default='dcgan', help='model type (dcgan | unet | resnet)')
-parser.add_argument('--data_threads', type=int, default=5, help='number of parallel data loading threads')
+parser.add_argument('--data_threads', type=int, default=24, help='number of parallel data loading threads')
 parser.add_argument('--normalize', action='store_true', help='if true, normalize pose vector')
 parser.add_argument('--data_type', default='drnet', help='speed up data loading for drnet training')
 
 
 opt = parser.parse_args()
-name = 'content_model=%s-pose_model=%s-content_dim=%d-pose_dim=%d-max_step=%d-sd_weight=%.3f-lr=%.3f-sd_nf=%d-normalize=%s' % (opt.content_model, opt.pose_model, opt.content_dim, opt.pose_dim, opt.max_step, opt.sd_weight, opt.lr, opt.sd_nf, opt.normalize)
+opt.dataset = 'kth'
+name = utils.get_current_time() + os.sep + 'content_model=%s-pose_model=%s-content_dim=%d-pose_dim=%d-max_step=%d-sd_weight=%.3f-lr=%.3f-sd_nf=%d-normalize=%s' % (opt.content_model, opt.pose_model, opt.content_dim, opt.pose_dim, opt.max_step, opt.sd_weight, opt.lr, opt.sd_nf, opt.normalize)
 opt.log_dir = '%s/%s%dx%d/%s' % (opt.log_dir, opt.dataset, opt.image_width, opt.image_width, name)
 
 # checkpoint = torch.load('%s/model.pth' % opt.log_dir, map_location='cpu')

@@ -10,6 +10,7 @@ import numpy as np
 import scipy.misc
 import matplotlib.pyplot as plt
 import functools
+import datetime
 
 
 from torchvision import datasets, transforms
@@ -182,3 +183,8 @@ def init_weights(m):
     elif classname.find('BatchNorm') != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
+
+
+def get_current_time():
+    currentDT = datetime.datetime.now()
+    return str(currentDT.strftime("%Y-%m-%d-%H-%M-%S"))
