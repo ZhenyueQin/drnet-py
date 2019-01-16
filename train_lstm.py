@@ -15,7 +15,7 @@ parser.add_argument('--lr', default=0.0002, type=float, help='learning rate')
 parser.add_argument('--beta1', default=0.9, type=float, help='momentum term for adam')
 parser.add_argument('--batch_size', default=100, type=int, help='batch size')
 parser.add_argument('--model_path', default='./logs/kth128x128/2019-01-14-18-14-45/content_model=dcgan_unet-pose_model=dcgan-content_dim=128-pose_dim=10-max_step=20-sd_weight=0.000-lr=0.002-sd_nf=100-normalize=False', help='path to drnet model')
-parser.add_argument('--data_root', default='', help='root directory for data')
+parser.add_argument('--data_root', default='./videos', help='root directory for data')
 parser.add_argument('--optimizer', default='adam', help='optimizer to train with')
 parser.add_argument('--niter', type=int, default=200, help='number of epochs to train for')
 parser.add_argument('--seed', default=1, type=int, help='manual seed')
@@ -240,7 +240,6 @@ def train(x):
 
 # --------- training loop ------------------------------------
 for epoch in range(opt.niter):
-    print('epoch: ', epoch)
     lstm.train()
     epoch_loss = 0
     progress = progressbar.ProgressBar(max_value=opt.epoch_size).start()

@@ -85,7 +85,10 @@ class decoder(nn.Module):
     def forward(self, input):
         content, pose = input
         content, skip = content
-        d1 = self.upc1(torch.cat([content, pose], 1))
+
+        d0 = torch.cat([content, pose], 1).reshape([-1, content.shape[1] + pose.shape[1], 1, 1])
+        d1 = self.upc1(d0)
+
         d2 = self.upc2(torch.cat([d1, skip[4]], 1))
         d3 = self.upc3(torch.cat([d2, skip[3]], 1))
         d4 = self.upc4(torch.cat([d3, skip[2]], 1))

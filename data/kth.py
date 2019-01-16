@@ -4,7 +4,8 @@ import numpy as np
 import socket
 import torch
 from scipy import misc
-from torch.utils.serialization import load_lua
+# from torch.utils.serialization import load_lua
+import torchfile
 
 class KTH(object):
 
@@ -27,7 +28,7 @@ class KTH(object):
 
         self.data= {}
         for c in self.classes:
-            self.data[c] = load_lua('%s/%s/%s_meta%dx%d.t7' % (self.data_root, c, data_type, image_size, image_size))
+            self.data[c] = torchfile.load('%s/%s/%s_meta%dx%d.t7' % (self.data_root, c, data_type, image_size, image_size))
      
 
         self.seed_set = False
