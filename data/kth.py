@@ -4,8 +4,8 @@ import numpy as np
 import socket
 import torch
 from scipy import misc
-# from torch.utils.serialization import load_lua
-import torchfile
+import sys
+
 
 class KTH(object):
 
@@ -27,19 +27,35 @@ class KTH(object):
             data_type = 'test'
 
         self.data= {}
+        self.using_lua = True
         for c in self.classes:
-            self.data[c] = torchfile.load('%s/%s/%s_meta%dx%d.t7' % (self.data_root, c, data_type, image_size, image_size))
-     
+            try:
+                # print('using load lua')
+                from torch.utils.serialization import load_lua
+                self.data[c] = load_lua(
+                    '%s/%s/%s_meta%dx%d.t7' % (self.data_root, c, data_type, image_size, image_size))
+            except ImportError:
+                self.using_lua = False
+                # print('using torchfile')
+                import torchfile
+                self.data[c] = torchfile.load(
+                    '%s/%s/%s_meta%dx%d.t7' % (self.data_root, c, data_type, image_size, image_size))
 
         self.seed_set = False
 
     def get_sequence(self):
+        # print('get sequence')
         t = self.seq_len
         while True: # skip seqeunces that are too short
             c_idx = np.random.randint(len(self.classes))
             c = self.classes[c_idx]
+            # print('self.data[c]: ', c)
+            # print('self.data: ', self.data.keys())
             vid_idx = np.random.randint(len(self.data[c]))
             vid = self.data[c][vid_idx]
+            if not self.using_lua:
+                vid = {k.decode('utf-8'): v for k, v in vid.items()}
+            # print('vid: ', vid)
             seq_idx = np.random.randint(len(vid['files']))
             if len(vid['files'][seq_idx]) - t >= 0:
                 break
@@ -50,6 +66,7 @@ class KTH(object):
         seq = [] 
         for i in range(st, st+t):
             fname = '%s/%s' % (dname, vid['files'][seq_idx][i])
+            fname = fname.replace('b\'', '').replace('\'', '')
             im = misc.imread(fname)/255.
             seq.append(im)
         return np.array(seq)

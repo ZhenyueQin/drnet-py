@@ -86,6 +86,8 @@ class decoder(nn.Module):
         content, pose = input
         content, skip = content
 
+        content = content.reshape([-1, content.shape[1]])
+        pose = pose.reshape([-1, pose.shape[1]])
         d0 = torch.cat([content, pose], 1).reshape([-1, content.shape[1] + pose.shape[1], 1, 1])
         d1 = self.upc1(d0)
 

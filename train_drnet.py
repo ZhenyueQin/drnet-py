@@ -22,8 +22,8 @@ parser.add_argument('--niter', type=int, default=200, help='number of epochs to 
 parser.add_argument('--seed', default=1, type=int, help='manual seed')
 parser.add_argument('--epoch_size', type=int, default=600, help='epoch size')
 parser.add_argument('--content_dim', type=int, default=128, help='size of the content vector')
-parser.add_argument('--pose_dim', type=int, default=10, help='size of the pose vector')
-parser.add_argument('--image_width', type=int, default=128, help='the height / width of the input image to network')
+parser.add_argument('--pose_dim', type=int, default=20, help='size of the pose vector')
+parser.add_argument('--image_width', type=int, default=64, help='the height / width of the input image to network')
 parser.add_argument('--channels', default=3, type=int)
 parser.add_argument('--dataset', default='kth', help='dataset to train with')
 parser.add_argument('--max_step', type=int, default=20, help='maximum distance between frames')
@@ -302,5 +302,6 @@ for epoch in range(opt.niter):
         'netD': netD,
         'netEP': netEP,
         'netEC': netEC,
+        'netC': netC,
         'opt': opt},
         '%s/model.pth' % opt.log_dir)
