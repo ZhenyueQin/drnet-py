@@ -92,3 +92,24 @@ class decoder(nn.Module):
         output = self.upc5(torch.cat([d4, skip[0]], 1))
         return output
 
+
+class Discriminator(nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+
+        self.main = nn.Sequential(
+            nn.Conv2d(3, 64, 4, 2, 1),
+            nn.LeakyReLU(0.1, inplace=True),
+            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.1, inplace=True),
+            nn.Conv2d(128, 1024, 7, bias=False),
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(0.1, inplace=True),
+            nn.Conv2d(1024, 1, 10),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        output = self.main(x).view(-1, 1)
+        return output

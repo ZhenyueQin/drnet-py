@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader
 import utils
 import itertools
 import progressbar
+from shutil import copyfile
+import uuid
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=0.002, type=float, help='learning rate')
@@ -38,11 +40,20 @@ parser.add_argument('--data_type', default='drnet', help='speed up data loading 
 
 opt = parser.parse_args()
 opt.dataset = 'kth'
-name = utils.get_current_time() + os.sep + 'content_model=%s-pose_model=%s-content_dim=%d-pose_dim=%d-max_step=%d-sd_weight=%.3f-lr=%.3f-sd_nf=%d-normalize=%s' % (opt.content_model, opt.pose_model, opt.content_dim, opt.pose_dim, opt.max_step, opt.sd_weight, opt.lr, opt.sd_nf, opt.normalize)
+rand_str = '@'+str(uuid.uuid4())[:4]
+name = utils.get_current_time() + rand_str + os.sep + 'content_model=%s-pose_model=%s-content_dim=%d-pose_dim=%d-max_step=%d-sd_weight=%.3f-lr=%.3f-sd_nf=%d-normalize=%s' % (opt.content_model, opt.pose_model, opt.content_dim, opt.pose_dim, opt.max_step, opt.sd_weight, opt.lr, opt.sd_nf, opt.normalize)
 opt.log_dir = '%s/%s%dx%d/%s' % (opt.log_dir, opt.dataset, opt.image_width, opt.image_width, name)
+
+if not os.path.exists(opt.log_dir):
+    os.makedirs('%s/rec/' % opt.log_dir, exist_ok=True)
+    copyfile('./train_drnet.py', opt.log_dir+os.sep+'train_drnet.py')
+    copyfile('./train_lstm.py', opt.log_dir+os.sep+'train_lstm.py')
 
 # checkpoint = torch.load('%s/model.pth' % opt.log_dir, map_location='cpu')
 # print('checkpoint: ', checkpoint)
+
+has_cuda = torch.cuda.is_available()
+device = torch.device("cuda" if has_cuda else "cpu")
 
 os.makedirs('%s/rec/' % opt.log_dir, exist_ok=True)
 os.makedirs('%s/analogy/' % opt.log_dir, exist_ok=True)
@@ -52,8 +63,11 @@ print(opt)
 print("Random Seed: ", opt.seed)
 random.seed(opt.seed)
 torch.manual_seed(opt.seed)
-torch.cuda.manual_seed_all(opt.seed)
-dtype = torch.cuda.FloatTensor
+if has_cuda:
+    torch.cuda.manual_seed_all(opt.seed)
+    dtype = torch.cuda.FloatTensor
+else:
+    dtype = torch.FloatTensor
 
 if opt.image_width == 64:
     import models.resnet_64 as resnet_models
@@ -69,12 +83,15 @@ elif opt.image_width == 128:
 if opt.content_model == 'dcgan_unet':
     netEC = dcgan_unet_models.content_encoder(opt.content_dim, opt.channels)
     netD = dcgan_unet_models.decoder(opt.content_dim, opt.pose_dim, opt.channels)
+    netDis = dcgan_unet_models.Discriminator()
+
 elif opt.content_model == 'vgg_unet':
     netEC = vgg_unet_models.content_encoder(opt.content_dim, opt.channels)
     netD = vgg_unet_models.decoder(opt.content_dim, opt.pose_dim, opt.channels)
 elif opt.content_model == 'dcgan':
     netEC = dcgan_models.content_encoder(opt.content_dim, opt.channels)
     netD = dcgan_models.decoder(opt.content_dim, opt.pose_dim, opt.channels)
+
 else:
     raise ValueError('Unknown content model: %s' % opt.content_model)
 
@@ -92,6 +109,7 @@ netEC.apply(utils.init_weights)
 netEP.apply(utils.init_weights)
 netD.apply(utils.init_weights)
 netC.apply(utils.init_weights)
+netDis.apply(utils.init_weights)
 
 # ---------------- optimizers ----------------
 if opt.optimizer == 'adam':
@@ -107,18 +125,21 @@ optimizerC = opt.optimizer(netC.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999
 optimizerEC = opt.optimizer(netEC.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerEP = opt.optimizer(netEP.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 optimizerD = opt.optimizer(netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+optimizerDis = opt.optimizer(netDis.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
 # --------- loss functions ------------------------------------
 mse_criterion = nn.MSELoss()
 bce_criterion = nn.BCELoss()
+criterionD = nn.BCELoss().to(device)
 
 # --------- transfer to gpu ------------------------------------
-netEP.cuda()
-netEC.cuda()
-netD.cuda()
-netC.cuda()
-mse_criterion.cuda()
-bce_criterion.cuda()
+netEP.to(device)
+netEC.to(device)
+netD.to(device)
+netC.to(device)
+netDis.to(device)
+mse_criterion.to(device)
+bce_criterion.to(device)
 
 # --------- load a dataset ------------------------------------
 train_data, test_data = utils.load_dataset(opt)
@@ -199,6 +220,7 @@ def train(x):
     netEP.zero_grad()
     netEC.zero_grad()
     netD.zero_grad()
+    netDis.zero_grad()
 
     #x_c1 = x[0]
     x_c1 = x[0]
@@ -215,10 +237,28 @@ def train(x):
     # similarity loss: ||h_c1 - h_c2||
     sim_loss = mse_criterion(h_c1[0] if opt.content_model[-4:] == 'unet' else h_c1, h_c2)
 
-
     # reconstruction loss: ||D(h_c1, h_p1), x_p1|| 
     rec = netD([h_c1, h_p1])
     rec_loss = mse_criterion(rec, x_p1)
+
+    # print('x[0]: ', x[2].shape)
+    probs_real = netDis(x[2])
+    label = torch.cuda.FloatTensor(opt.batch_size).to(device)
+    label.data.fill_(1)
+    # print('probs_real: ', probs_real.shape)
+    # print('label: ', label.shape)
+    loss_real = criterionD(probs_real, label)
+    loss_real.backward()
+
+    probs_fake = netDis(rec.detach())
+    label.data.fill_(0)
+    loss_fake = criterionD(probs_fake, label)
+    loss_fake.backward()
+    optimizerDis.step()
+
+    probs_fake = netDis(rec)
+    label.data.fill_(1.0)
+    deception_loss = criterionD(probs_fake, label)
 
     # scene discriminator loss: maximize entropy of output
     target = torch.cuda.FloatTensor(opt.batch_size, 1).fill_(0.5)
@@ -226,7 +266,7 @@ def train(x):
     sd_loss = bce_criterion(out, Variable(target))
 
     # full loss
-    loss = sim_loss + rec_loss + opt.sd_weight*sd_loss
+    loss = sim_loss + rec_loss + opt.sd_weight*sd_loss + (10 * deception_loss)
     loss.backward()
 
     optimizerEC.step()
@@ -238,7 +278,10 @@ def train(x):
 def train_scene_discriminator(x):
     netC.zero_grad()
 
-    target = torch.cuda.FloatTensor(opt.batch_size, 1)
+    if has_cuda:
+        target = torch.cuda.FloatTensor(opt.batch_size, 1)
+    else:
+        target = torch.FloatTensor(opt.batch_size, 1)
 
     x1 = x[0]
     x2 = x[1]
@@ -246,7 +289,10 @@ def train_scene_discriminator(x):
     h_p2 = netEP(x2).detach()
 
     half = int(opt.batch_size/2)
-    rp = torch.randperm(half).cuda()
+    if has_cuda:
+        rp = torch.randperm(half).cuda()
+    else:
+        rp = torch.randperm(half).cpu()
     h_p2[:half] = h_p2[rp]
     target[:half] = 1
     target[half:] = 0
